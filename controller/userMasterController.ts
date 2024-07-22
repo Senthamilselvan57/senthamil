@@ -1,72 +1,77 @@
-import { Request, Response, NextFunction } from 'express';
-import asyncHandler from 'express-async-handler';
-import { selectUser,  updateUser, insertData } from '../../../models/IICSAA/userMaster';
+import { Request, Response, NextFunction } from "express";
 
-
-export const getUser = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const userId = req.params.userId;
-      const result = await selectUser(userId);
-      res.status(200).json({ status: true, data: result });
-    } catch (error: any) {
-      console.error('Error fetching user:', error);
-      next({ status: 500, message: 'Internal server error' });
-    }
-  });
-
-
-
-  export const createUser = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { userId, name, email, mobileNumber, sex, maritalStatus, address, aadharNo } = req.body;
-      const entryUser = userId; // Assuming user ID is used as entry user
-      const entryDate = new Date(); // Assuming current date/time as entry date
-  
-      const userData = {
-        IICSAAK_USER_ID: userId,
-        IICSAAK_USER_NAME: name,
-        IICSAAK_USER_EMAIL: email,
-        IICSAAK_PRIM_MOBILE_NO: mobileNumber,
-        IICSAAK_SEX: sex,
-        IICSAAK_ENTRY_USER: entryUser,
-        IICSAAK_ENTRY_DATE: entryDate,
-        IICSAAK_MARITAL_STATUS: maritalStatus,
-        IICSAAK_ADDRESS: address,
-        IICSAAK_AADHAR_NO: aadharNo,
-      };
-  
-      const result = await insertData(userData);
-      res.status(201).json(result);
-    } catch (error: any) {
-      console.error('Error creating user:', error.message);
-      next({ status: 400, message: error.message });
-    }
+export const asyncHandler =
+  (fn: Function) => (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
   };
-  
-  export const updateUserDetails = async (req: Request, res: Response, next: NextFunction) => {
+
+import {
+  selectAllUsers,
+  selectUserById,
+  insertUser,
+  updateUser,
+  UserDetails,
+} from "../../../models/IICSAA/userMaster";
+
+// Get all users
+export const getAllUsers = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const result = await selectAllUsers();
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("Error getting all users:", error);
+    throw { status: 500, message: error.message };
+  }
+});
+
+// Get a user by ID
+export const getUserById = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.params.userId;
+  try {
+    const result = await selectUserById(userId);
+    if (result.length === 0) {
+      // Check if result is an empty array
+      throw { status: 404, message: "No data found" };
+    }
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("Error getting user by ID:", error);
+    const status = error.status || 500;
+    throw { status, message: error.message };
+  }
+});
+
+// Insert a new user
+export const createUser = asyncHandler(async (req: Request, res: Response) => {
+  const data: UserDetails = req.body;
+  try {
+    const result = await insertUser(data);
+    res.status(201).json(result);
+  } catch (error: any) {
+    console.error("Error creating user:", error);
+    // Check for specific error message
+    if (error.message.includes("Missing mandatory field")) {
+      res.status(400).json({ message: error.message });
+    } else {
+      res.status(500).json({ message: error.message });
+    }
+  }
+});
+
+export const updateUserById = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.params.userId;
+    const updatedDetails: Partial<UserDetails> = req.body;
+
+    // Use the userId from params as the MODIFY_USER
+    const modifyUserId = userId;
+
     try {
-      const userId = req.params.userId;
-      const { name, email, mobileNumber, sex, maritalStatus, address, aadharNo } = req.body;
-      const modifierUser = userId; // Assuming user ID is used as modifier user
-      const modifyDate = new Date(); // Assuming current date/time as modify date
-  
-      const userDataToUpdate = {
-        IICSAAK_USER_ID: userId,
-        IICSAAK_USER_NAME: name,
-        IICSAAK_USER_EMAIL: email,
-        IICSAAK_PRIM_MOBILE_NO: mobileNumber,
-        IICSAAK_SEX: sex,
-        IICSAAK_MODIFY_USER: modifierUser,
-        IICSAAK_MODIFY_DATE: modifyDate,
-        IICSAAK_MARITAL_STATUS: maritalStatus,
-        IICSAAK_ADDRESS: address,
-        IICSAAK_AADHAR_NO: aadharNo,
-      };
-  
-      const result = await updateUser(userDataToUpdate);
+      const result = await updateUser(modifyUserId, updatedDetails);
       res.status(200).json(result);
     } catch (error: any) {
-      console.error('Error updating user:', error.message);
-      next({ status: 400, message: error.message });
+      console.error("Error updating user:", error);
+      res.status(500).json({ message: error.message });
     }
-  };
+  }
+);
